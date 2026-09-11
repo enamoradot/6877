@@ -18,6 +18,7 @@ import { jobsById } from '../data/jobs';
 import { propertiesById } from '../data/properties';
 import { carsById } from '../data/cars';
 import { businessesById } from '../data/businesses';
+import { activities as activitiesData } from '../data/activities';
 import { events } from '../data/events';
 import { achievements } from '../data/achievements';
 import { generateId, pickRandom, percentChance } from '../utils/helpers';
@@ -138,6 +139,9 @@ export interface GameStore {
   buyCar: (carId: string) => void;
   sellCar: (carId: string) => void;
   maintainCar: (carId: string) => void;
+
+  // Activity actions
+  doActivity: (activityId: string) => void;
 
   // Business actions
   startBusiness: (businessId: string) => void;
@@ -704,6 +708,37 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       ),
     }));
     get().addNotification(`Maintained ${car.name}. Condition improved!`, 'success');
+  },
+
+  // ===== Activity Actions =====
+
+  doActivity: (activityId: string) => {
+    const state = get();
+    const activity = activitiesData.find(a => a.id === activityId);
+    if (!activity) return;
+    if (state.player.energy < activity.energyCost) {
+      get().addNotification('Not enough energy for this activity!', 'warning');
+      return;
+    }
+    if (activity.cost > 0 && state.player.cash < activity.cost) {
+      get().addNotification('Not enough money for this activity!', 'warning');
+      return;
+    }
+    if (activity.cost > 0) {
+      get().spendCash(activity.cost, 'activity', activity.name);
+    }
+    if (activity.energyCost > 0) get().modifyEnergy(-activity.energyCost);
+    if (activity.moodEffect !== 0) get().modifyMood(activity.moodEffect);
+    if (activity.hungerEffect !== 0) get().modifyHunger(-activity.hungerEffect);
+    if (activity.healthEffect !== 0) get().modifyHealth(activity.healthEffect);
+    if (activity.skillXp) {
+      for (const [skillId, amount] of Object.entries(activity.skillXp)) {
+        get().addSkillXp(skillId as SkillId, amount);
+      }
+    }
+    get().advanceTime(activity.timeCost);
+    get().addXp(5);
+    get().addNotification(`Completed: ${activity.name}`, 'success');
   },
 
   // ===== Business Actions =====
